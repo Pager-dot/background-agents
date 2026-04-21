@@ -1,0 +1,333 @@
+---
+title: "Contributing"
+description: "How to contribute to Open-Inspect — setup, code style, testing, and pull request process."
+icon: "code-pull-request"
+---
+
+Thank you for your interest in contributing to Open-Inspect! This guide covers everything you need to go from zero to a merged pull request.
+
+---
+
+## Getting Started
+
+<Steps>
+  <Step title="Fork and clone">
+    Fork [Pager-dot/background-agents](https://github.com/Pager-dot/background-agents) to your GitHub account or organization, then clone your fork:
+
+    ```bash
+    git clone https://github.com/YOUR-USERNAME/background-agents.git
+    cd background-agents
+    ```
+  </Step>
+  <Step title="Run the setup script">
+    ```bash
+    bash .openinspect/setup.sh
+    ```
+
+    This single command handles all of:
+    - `npm install` — JS monorepo dependencies
+    - `npm run build -w @open-inspect/shared` — builds the shared package (required first)
+    - Git hooks via Husky + lint-staged
+    - Python virtualenv for `packages/modal-infra` (when Python 3.12 is available)
+  </Step>
+  <Step title="Create a branch">
+    ```bash
+    git checkout -b feature/your-feature-name
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Development Setup
+
+If you prefer manual setup over the bootstrap script:
+
+```bash
+# Install JS dependencies
+npm install
+
+# Build shared package first — other packages import from it at build time
+npm run build -w @open-inspect/shared
+
+# Type check all packages
+npm run typecheck
+
+# Lint
+npm run lint
+
+# Run all tests
+npm test
+```
+
+<Note>
+  Always build `@open-inspect/shared` before working on packages that depend on it (`control-plane`, `web`, `slack-bot`, `github-bot`, `linear-bot`). Forgetting this step causes stale-type build errors.
+</Note>
+
+---
+
+## Project Structure
+
+| Package | Language | Purpose |
+|---------|----------|---------|
+| `packages/shared` | TypeScript | Shared types, auth utilities, model definitions — build this first |
+| `packages/control-plane` | TypeScript / CF Workers | Session management, WebSocket streaming, GitHub integration |
+| `packages/web` | TypeScript / Next.js | User-facing dashboard, OAuth, real-time UI |
+| `packages/slack-bot` | TypeScript / CF Workers | Slack event handler, session creation |
+| `packages/github-bot` | TypeScript / CF Workers | PR review and @mention webhook handler |
+| `packages/linear-bot` | TypeScript / CF Workers | Linear agent webhook handler |
+| `packages/modal-infra` | Python 3.12 / Modal | Sandbox lifecycle, WebSocket bridge to control plane |
+| `packages/sandbox-runtime` | Python | Agent runtime skills library |
+
+### Package Dependency Graph
+
+```
+@open-inspect/shared  ←  control-plane, web, slack-bot, github-bot, linear-bot
+```
+
+---
+
+## Code Style
+
+### TypeScript
+
+```bash
+# ESLint + Prettier combined fix
+npm run lint:fix
+
+# Prettier only
+npm run format
+
+# Type check all packages
+npm run typecheck
+```
+
+All TypeScript packages follow the ESLint configuration in `eslint.config.js` and Prettier settings in `.prettierrc`.
+
+### Python
+
+```bash
+cd packages/modal-infra
+
+# Lint and auto-fix
+ruff check --fix
+
+# Format
+ruff format
+```
+
+### Naming Conventions
+
+| Convention | Example |
+|-----------|---------|
+| TypeScript timeouts in milliseconds | `INACTIVITY_TIMEOUT_MS`, `timeoutMs` |
+| Python timeouts in seconds | `timeout_seconds`, `SANDBOX_TIMEOUT_SECONDS` |
+| Encode the unit in the name | Never use a bare `timeout` |
+
+See `AGENTS.md` for the full coding conventions reference.
+
+---
+
+## Commit Messages
+
+Use [Conventional Commits](https://www.conventionalcommits.org):
+
+```bash
+feat: add new feature
+fix: resolve issue with X
+docs: update documentation
+refactor: restructure module
+test: add tests for Y
+chore: update dependencies
+```
+
+Keep the subject under **72 characters**. Put detail in the PR description, not the commit message body.
+
+---
+
+## Testing
+
+### TypeScript Tests (Vitest)
+
+```bash
+# All packages
+npm test
+
+# Specific packages
+npm test -w @open-inspect/control-plane
+npm test -w @open-inspect/web
+npm test -w @open-inspect/github-bot
+npm test -w @open-inspect/slack-bot
+npm test -w @open-inspect/linear-bot
+
+# Control-plane integration tests (real workerd + D1)
+npm run test:integration -w @open-inspect/control-plane
+```
+
+<AccordionGroup>
+  <Accordion title="Control-plane integration tests">
+    Integration tests run inside a real `workerd` runtime with Miniflare, using `defineWorkersConfig` and real D1 bindings. Key points:
+
+    - `isolatedStorage: false` — tests share storage due to a workers-sdk SQLite WAL cleanup bug
+    - Use `cleanD1Tables()` in `beforeEach` to avoid cross-test pollution
+    - D1 migrations from `terraform/d1/migrations/` are applied automatically
+    - Helpers: `initSession()`, `queryDO()`, `seedEvents()` in `test/integration/helpers.ts`
+  </Accordion>
+  <Accordion title="Test file locations">
+    | Package | Location | Runner |
+    |---------|----------|--------|
+    | control-plane unit | `src/**/*.test.ts` | Node |
+    | control-plane integration | `test/integration/*.test.ts` | workerd / Miniflare |
+    | web, slack-bot, linear-bot | `src/**/*.test.ts` | Node |
+    | github-bot | `test/*.test.ts` | Node |
+    | modal-infra | `tests/test_*.py` | pytest |
+  </Accordion>
+</AccordionGroup>
+
+### Python Tests (pytest)
+
+```bash
+cd packages/modal-infra
+
+# Install dev dependencies
+uv sync --frozen --extra dev
+
+# Run tests
+pytest tests/ -v
+```
+
+---
+
+## Pull Requests
+
+Before opening a PR, make sure:
+
+<Steps>
+  <Step title="All tests pass">
+    ```bash
+    npm test
+    ```
+  </Step>
+  <Step title="Linting passes">
+    ```bash
+    npm run lint
+    ```
+  </Step>
+  <Step title="Type checking passes">
+    ```bash
+    npm run typecheck
+    ```
+  </Step>
+  <Step title="Update documentation if needed">
+    If your change affects behavior documented in `docs/` or `mintlify/`, update the relevant files.
+  </Step>
+  <Step title="Write a clear PR description">
+    Explain **what** you changed and **why**. Reference any related issues.
+  </Step>
+</Steps>
+
+CI automatically runs lint, typecheck, and tests for all TypeScript and Python packages on every push and PR. PRs must pass all checks before merging.
+
+---
+
+## Making Changes
+
+### Extending Existing Patterns
+
+When threading an existing field through new code paths, evaluate whether the existing design (naming, types, units) is correct — don't blindly propagate it. Fix bad names or units in the same change rather than spreading the problem.
+
+### Adding New Features
+
+- Don't add features beyond what the task requires
+- Three similar lines is better than a premature abstraction
+- Only validate at system boundaries (user input, external APIs)
+- Add comments only when the **why** is non-obvious — never explain what the code does
+
+### Security
+
+Avoid introducing security vulnerabilities:
+- No SQL injection (use parameterized queries)
+- No command injection (never interpolate user input into shell commands)
+- No XSS (sanitize user-facing output)
+- Secrets are never logged or returned by the API
+
+---
+
+## Source Control Provider Contributions
+
+Adding a new SCM provider (e.g., GitLab, Bitbucket) requires following additional guidelines:
+
+- Read `docs/adr/0001-single-provider-scm-boundaries.md` — the ADR on single-provider boundaries
+- Follow `docs/provider-contribution-checklist.md` — a checklist of required implementation points
+
+<Note>
+  Open-Inspect is single-tenant. New SCM providers must maintain this design: all users share the same App installation and credentials.
+</Note>
+
+---
+
+## Reporting Issues
+
+When reporting a bug, please include:
+
+- A clear description of the problem
+- Steps to reproduce the issue
+- Expected vs. actual behavior
+- Environment details (OS, Node.js version, browser if applicable)
+- Relevant log output (from browser DevTools or Cloudflare Workers logs)
+
+Open an issue with the appropriate label:
+- `bug` — something is broken
+- `enhancement` — feature request
+- `question` — asking for clarification
+- `documentation` — docs are wrong or missing
+
+---
+
+## Architecture Notes for Contributors
+
+### Build Order
+
+`@open-inspect/shared` must be built before any package that imports from it. The setup script handles this automatically, but if you're running commands manually:
+
+```bash
+npm run build -w @open-inspect/shared
+# then build other packages
+```
+
+### PKCS#8 Keys
+
+Cloudflare Workers require PKCS#8 format for GitHub App private keys:
+
+```bash
+openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt \
+  -in private-key.pem -out private-key-pkcs8.pem
+```
+
+### Durable Object Bindings
+
+New DO bindings require a two-phase Terraform deploy:
+1. First apply with `enable_durable_object_bindings = false`
+2. Second apply with `enable_durable_object_bindings = true`
+
+### Modal Deployment
+
+Never deploy `src/app.py` directly — use:
+
+```bash
+modal deploy deploy.py
+# or
+modal deploy -m src
+```
+
+The `app.py` file doesn't import function modules and will produce an incomplete deployment.
+
+### No `wrangler.toml` for Control Plane
+
+The control-plane's `wrangler.jsonc` is generated by Terraform. Don't check in or manually edit it.
+
+---
+
+## License
+
+By contributing, you agree that your contributions will be licensed under the [MIT License](https://github.com/Pager-dot/background-agents/blob/main/LICENSE).

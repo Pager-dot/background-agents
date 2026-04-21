@@ -18,7 +18,7 @@
   "topbarLinks": [
     {
       "name": "GitHub",
-      "url": "https://github.com/ColeMurray/background-agents"
+      "url": "https://github.com/Pager-dot/background-agents"
     }
   ],
   "topbarCtaButton": {
@@ -39,12 +39,12 @@
     {
       "name": "GitHub",
       "icon": "github",
-      "url": "https://github.com/ColeMurray/background-agents"
+      "url": "https://github.com/Pager-dot/background-agents"
     },
     {
       "name": "Contributing",
       "icon": "code",
-      "url": "https://github.com/ColeMurray/background-agents/blob/main/CONTRIBUTING.md"
+      "url": "mintlify/contributing"
     }
   ],
   "navigation": [
@@ -95,9 +95,15 @@
       "pages": [
         "mintlify/debugging/playbook"
       ]
+    },
+    {
+      "group": "Contributing",
+      "pages": [
+        "mintlify/contributing"
+      ]
     }
   ],
   "footerSocials": {
-    "github": "https://github.com/ColeMurray/background-agents"
+    "github": "https://github.com/Pager-dot/background-agents"
   }
 }
