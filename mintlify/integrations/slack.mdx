@@ -1,0 +1,148 @@
+---
+title: "Slack Integration"
+description: "Start coding sessions from Slack via @mention or direct message, with results threaded back."
+icon: "slack"
+---
+
+The Slack bot lets your team start Open-Inspect sessions directly from Slack. @mention the bot in a channel or send it a DM — it classifies the appropriate repository, creates a session, and threads the results back.
+
+---
+
+## Setup
+
+### Create the Slack App
+
+<Steps>
+  <Step title="Create the app">
+    Go to [Slack API Apps](https://api.slack.com/apps), click **Create New App → From scratch**, name it (e.g., `Open-Inspect`), and select your workspace.
+  </Step>
+  <Step title="Add Bot Token Scopes">
+    Go to **OAuth & Permissions** and add **Bot Token Scopes**:
+
+    - `app_mentions:read`
+    - `chat:write`
+    - `channels:history`
+    - `channels:read`
+    - `groups:history`
+    - `groups:read`
+    - `im:history`
+    - `im:read`
+    - `reactions:write`
+  </Step>
+  <Step title="Install to workspace">
+    Click **Install to Workspace** and note the **Bot Token** (`xoxb-...`).
+  </Step>
+  <Step title="Get Signing Secret">
+    Go to **Basic Information** and note the **Signing Secret**.
+  </Step>
+</Steps>
+
+### Configure Terraform
+
+Set these values in `terraform.tfvars`:
+
+```hcl
+enable_slack_bot     = true
+slack_bot_token      = "xoxb-..."
+slack_signing_secret = "your-signing-secret"
+```
+
+### Post-Deployment Configuration
+
+After running `terraform apply`, configure Event Subscriptions and Interactivity in the Slack app settings.
+
+**Event Subscriptions:**
+1. Go to **Event Subscriptions** and toggle **Enable Events** to On
+2. Enter **Request URL**:
+   ```
+   https://open-inspect-slack-bot-{deployment_name}.{subdomain}.workers.dev/events
+   ```
+3. Wait for the green **"Verified"** checkmark
+4. Under **Subscribe to bot events**, add:
+   - `app_home_opened`
+   - `app_mention`
+   - `message.channels` *(optional — see all channel messages)*
+   - `message.im`
+5. Click **Save Changes**
+
+**Interactivity:**
+1. Go to **Interactivity & Shortcuts** and toggle **Interactivity** to On
+2. Enter **Request URL**:
+   ```
+   https://open-inspect-slack-bot-{deployment_name}.{subdomain}.workers.dev/interactions
+   ```
+
+**App Home:**
+1. Go to **App Home**
+2. Under **Show Tabs**, toggle **"Home Tab"** to On
+
+### Invite to Channels
+
+In each Slack channel where you want the bot to respond:
+
+```
+/invite @YourBotName
+```
+
+Or click the channel name → Integrations → Add apps.
+
+<Note>
+  The bot only responds to @mentions in channels it has been invited to.
+</Note>
+
+---
+
+## Usage
+
+### @Mention in a Channel
+
+```
+@open-inspect Add error handling to the payment processor in our checkout repo
+```
+
+The bot:
+1. Classifies which repository the message refers to
+2. Creates a session against that repo
+3. Starts processing in the background
+4. Threads the results back to your message
+
+### Direct Message
+
+Send a DM to the bot directly — no @mention needed.
+
+### Thread Context
+
+When you tag the bot in a thread reply, it reads the full thread context to understand the conversation. Requires `channels:history` (public) and `groups:history` (private) scopes.
+
+### Model Preferences
+
+Each user can configure their preferred model and branch in the Slack **App Home** tab. This preference is used when the bot creates sessions on their behalf.
+
+---
+
+## How It Works
+
+1. Slack delivers the event to the bot worker via webhook
+2. Bot classifies the message to determine the target repository
+3. Bot creates a session in the control plane
+4. Agent processes the prompt in a Modal sandbox
+5. When complete, bot posts the summary as a thread reply
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Bot not responding">
+    1. Verify Event Subscriptions URL is verified (green checkmark)
+    2. Ensure the bot is invited to the channel (`/invite @BotName`)
+    3. Check you're @mentioning the bot in your message
+    4. If you updated bot token scopes, **reinstall the app** to your workspace
+  </Accordion>
+  <Accordion title="Bot ignores thread context">
+    The bot needs `channels:history` (public channels), `groups:history` (private channels), `channels:read`, and `groups:read` scopes. After adding missing scopes, reinstall the app to your workspace for the new permissions to take effect.
+  </Accordion>
+  <Accordion title="Scope changes not taking effect">
+    After updating bot token scopes, you must **reinstall the app** to your workspace. Click **Reinstall App** in the Slack App settings.
+  </Accordion>
+</AccordionGroup>

@@ -1,0 +1,152 @@
+---
+title: "API Overview"
+description: "Base URLs, authentication, and the complete endpoint index for the Open-Inspect control plane."
+icon: "rectangle-terminal"
+---
+
+## Base URL
+
+The control plane is a Cloudflare Worker. All API requests go to:
+
+```
+https://open-inspect-control-plane-{deployment_name}.{subdomain}.workers.dev
+```
+
+Replace `{deployment_name}` with your Terraform `deployment_name` and `{subdomain}` with your Cloudflare Workers subdomain.
+
+---
+
+## Authentication
+
+All endpoints except `/health` require authentication via a session cookie from GitHub OAuth.
+
+The web app handles authentication automatically. For direct API calls, include the session cookie obtained after signing in:
+
+```bash
+curl -H "Cookie: next-auth.session-token=..." \
+  https://open-inspect-control-plane-{deployment_name}.{subdomain}.workers.dev/sessions
+```
+
+WebSocket connections require a short-lived token — see [WebSocket Protocol](/api-reference/websocket).
+
+---
+
+## Endpoint Index
+
+### Health
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/health` | Health check |
+
+### Sessions
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/sessions` | List user's sessions |
+| `POST` | `/sessions` | Create a new session |
+| `GET` | `/sessions/:id` | Get session state |
+| `DELETE` | `/sessions/:id` | Delete session |
+| `POST` | `/sessions/:id/prompt` | Enqueue a prompt |
+| `POST` | `/sessions/:id/stop` | Stop current execution |
+| `POST` | `/sessions/:id/archive` | Archive session |
+| `POST` | `/sessions/:id/unarchive` | Unarchive session |
+
+### Real-Time
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `WS` | `/sessions/:id/ws` | WebSocket event stream |
+| `POST` | `/sessions/:id/ws-token` | Generate a WebSocket token |
+
+### Messages & Events
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/sessions/:id/messages` | List messages |
+| `GET` | `/sessions/:id/events` | Paginated event list |
+
+### Artifacts
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/sessions/:id/artifacts` | List artifacts |
+| `POST` | `/sessions/:id/pr` | Create pull request |
+| `POST` | `/sessions/:id/media` | Upload screenshot |
+
+### Participants
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/sessions/:id/participants` | List session participants |
+| `POST` | `/sessions/:id/participants` | Add a participant |
+
+### Repositories
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/repos` | List accessible repositories |
+| `GET` | `/repos/:owner/:name/metadata` | Get repository metadata |
+| `PUT` | `/repos/:owner/:name/metadata` | Update repository metadata |
+| `GET` | `/repos/:owner/:name/secrets` | List secret keys |
+| `PUT` | `/repos/:owner/:name/secrets` | Upsert secrets |
+| `DELETE` | `/repos/:owner/:name/secrets/:key` | Delete a secret |
+| `GET` | `/repos/:owner/:name/images` | List repo images |
+| `POST` | `/repos/:owner/:name/images/trigger` | Trigger image rebuild |
+
+### Automations
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/automations` | List automations |
+| `POST` | `/automations` | Create automation |
+| `GET` | `/automations/:id` | Get automation |
+| `PUT` | `/automations/:id` | Update automation |
+| `DELETE` | `/automations/:id` | Delete automation |
+| `GET` | `/automations/:id/runs` | List automation runs |
+| `POST` | `/automations/:id/trigger` | Manually trigger |
+
+### Settings
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/integrations/:name/settings` | Get integration settings |
+| `PUT` | `/integrations/:name/settings` | Update integration settings |
+| `GET` | `/model-preferences` | Get user model preferences |
+| `PUT` | `/model-preferences` | Update user model preferences |
+| `GET` | `/mcp-servers` | List MCP server configurations |
+| `PUT` | `/mcp-servers` | Update MCP server configurations |
+
+### Webhooks (Automation Triggers)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/webhooks/automation/:id` | Trigger automation via webhook |
+
+---
+
+## Common Response Codes
+
+| Code | Meaning |
+|------|---------|
+| `200` | Success |
+| `201` | Created |
+| `400` | Bad request / invalid input |
+| `401` | Unauthenticated |
+| `403` | Forbidden |
+| `404` | Resource not found |
+| `409` | Conflict (e.g., concurrent run active) |
+| `413` | Payload too large |
+| `500` | Internal server error |
+
+---
+
+## Pagination
+
+List endpoints support cursor-based pagination via `?cursor=` and `?limit=` query parameters. Responses include a `nextCursor` field when more results are available.
+
+---
+
+## Cross-Origin Requests
+
+CORS headers are set on all responses. Only requests originating from the configured `WEB_APP_URL` are permitted for cookie-authenticated calls.

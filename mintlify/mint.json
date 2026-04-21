@@ -1,0 +1,103 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Open-Inspect",
+  "logo": {
+    "light": "/images/logo/light.svg",
+    "dark": "/images/logo/dark.svg"
+  },
+  "favicon": "/images/logo/favicon.svg",
+  "colors": {
+    "primary": "#D97706",
+    "light": "#F59E0B",
+    "dark": "#B45309",
+    "anchors": {
+      "from": "#D97706",
+      "to": "#F59E0B"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "GitHub",
+      "url": "https://github.com/ColeMurray/background-agents"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Get Started",
+    "url": "/setup/getting-started"
+  },
+  "tabs": [
+    {
+      "name": "Guides",
+      "url": "/"
+    },
+    {
+      "name": "API Reference",
+      "url": "api-reference"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "GitHub",
+      "icon": "github",
+      "url": "https://github.com/ColeMurray/background-agents"
+    },
+    {
+      "name": "Contributing",
+      "icon": "code",
+      "url": "https://github.com/ColeMurray/background-agents/blob/main/CONTRIBUTING.md"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Overview",
+      "pages": [
+        "introduction",
+        "quickstart",
+        "how-it-works"
+      ]
+    },
+    {
+      "group": "Setup & Deployment",
+      "pages": [
+        "setup/getting-started",
+        "setup/local-development",
+        "setup/cicd"
+      ]
+    },
+    {
+      "group": "Features",
+      "pages": [
+        "features/automations",
+        "features/secrets",
+        "features/models",
+        "features/pre-built-images"
+      ]
+    },
+    {
+      "group": "Integrations",
+      "pages": [
+        "integrations/slack",
+        "integrations/github-bot",
+        "integrations/linear"
+      ]
+    },
+    {
+      "group": "API Reference",
+      "pages": [
+        "api-reference/overview",
+        "api-reference/sessions",
+        "api-reference/websocket",
+        "api-reference/webhooks"
+      ]
+    },
+    {
+      "group": "Operations",
+      "pages": [
+        "debugging/playbook"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/ColeMurray/background-agents"
+  }
+}

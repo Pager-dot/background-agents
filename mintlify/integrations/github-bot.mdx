@@ -1,0 +1,116 @@
+---
+title: "GitHub Bot"
+description: "Automatic PR reviews, @mention commands in PR comments, and reviewer-assignment triggers."
+icon: "github"
+---
+
+The GitHub bot responds to activity on pull requests — automatically reviewing when a PR is opened, responding to @mentions in PR comments, or triggering when assigned as a reviewer.
+
+---
+
+## Setup
+
+### Prerequisites
+
+The GitHub bot uses the same GitHub App you created during the main [Getting Started](/setup/getting-started) guide. Make sure the App has these repository permissions:
+
+- Issues: **Read & Write**
+- Pull requests: **Read & Write**
+
+### Configure Terraform
+
+Set these values in `terraform.tfvars`:
+
+```hcl
+enable_github_bot     = true
+github_webhook_secret = "your-webhook-secret"  # from Step 5 of Getting Started
+github_bot_username   = "my-app[bot]"           # your GitHub App's bot login
+```
+
+Generate the webhook secret if you haven't already:
+
+```bash
+echo "$(openssl rand -hex 32)"
+```
+
+### Post-Deployment: Configure Webhook
+
+After running `terraform apply`, configure the webhook in your GitHub App settings:
+
+<Steps>
+  <Step title="Open GitHub App settings">
+    Go to [GitHub Apps](https://github.com/settings/apps) and select your Open-Inspect app.
+  </Step>
+  <Step title="Enable webhook">
+    Under **Webhook**:
+    - Check **"Active"**
+    - Enter the **Webhook URL**:
+      ```
+      https://open-inspect-github-bot-{deployment_name}.{subdomain}.workers.dev/webhooks/github
+      ```
+    - Enter the **Webhook Secret** (the `github_webhook_secret` value from your `terraform.tfvars`)
+  </Step>
+  <Step title="Subscribe to events">
+    Under **Subscribe to events**, check:
+    - **Pull requests**
+    - **Issue comments**
+    - **Pull request review comments**
+  </Step>
+  <Step title="Save changes">
+    Click **Save changes**.
+  </Step>
+</Steps>
+
+### Find Your Bot Username
+
+Your GitHub App's bot username is its slug with `[bot]` appended. If your app is named `My-Inspect-App`, the bot username is `my-inspect-app[bot]`.
+
+You can also find it by having the bot perform any action and checking the actor's login in the webhook payload.
+
+---
+
+## Usage
+
+### Automatic PR Reviews
+
+When a PR is opened (and the GitHub bot is configured for the repository), the bot automatically performs a code review and posts its findings as a PR review.
+
+### @Mention in PR Comments
+
+Mention the bot in any PR comment with instructions:
+
+```
+@my-app[bot] fix the failing test in the payment module
+```
+
+The bot creates a session, executes the instruction, and responds in the thread.
+
+<Note>
+  The bot only responds to @mentions in **PR comments** — not issue comments.
+</Note>
+
+### Reviewer Assignment
+
+Assign the bot as a PR reviewer — it performs an automated review and posts the results.
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Bot not responding to webhooks">
+    1. Verify the webhook URL matches exactly:
+       ```
+       https://open-inspect-github-bot-{deployment_name}.{subdomain}.workers.dev/webhooks/github
+       ```
+    2. Check the webhook secret matches `github_webhook_secret` in `terraform.tfvars`
+    3. Confirm `enable_github_bot = true` in `terraform.tfvars` and the worker is deployed
+    4. Check `github_bot_username` matches your App's bot login (e.g., `my-app[bot]`)
+  </Accordion>
+  <Accordion title="Bot not responding to @mentions">
+    Ensure the bot is @mentioned in a **PR comment** (not an issue comment). The bot does not monitor general issue discussions.
+  </Accordion>
+  <Accordion title="Auto-review not triggering">
+    For PR reviews, ensure the bot is assigned as a reviewer (not just mentioned). Verify the **Pull requests** webhook event is subscribed in the GitHub App settings.
+  </Accordion>
+</AccordionGroup>

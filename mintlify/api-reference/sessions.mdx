@@ -1,0 +1,335 @@
+---
+title: "Sessions API"
+description: "Create, manage, and interact with coding sessions via the control plane HTTP API."
+icon: "terminal"
+---
+
+## Session Object
+
+```typescript
+interface Session {
+  id: string;
+  title: string | null;
+  repoOwner: string;
+  repoName: string;
+  baseBranch: string;
+  branchName: string | null;
+  status: SessionStatus;
+  createdAt: number;   // epoch ms
+  updatedAt: number;   // epoch ms
+}
+```
+
+### Session Status
+
+| Status | Description |
+|--------|-------------|
+| `created` | Session created, no work started |
+| `active` | Session is active (sandbox running or paused) |
+| `completed` | Session finished |
+| `failed` | Session encountered a fatal error |
+| `archived` | Session archived by the user |
+| `cancelled` | Session was cancelled |
+
+---
+
+## List Sessions
+
+```http
+GET /sessions
+```
+
+Returns the authenticated user's sessions, ordered by most recently updated.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `status` | string | Filter by status (e.g., `active`, `completed`) |
+| `limit` | number | Number of results (default: 20, max: 100) |
+| `cursor` | string | Pagination cursor from previous response |
+| `archived` | boolean | Include archived sessions (default: false) |
+
+**Response:**
+
+```json
+{
+  "sessions": [
+    {
+      "id": "ses_abc123",
+      "title": "Add error handling to payment processor",
+      "repoOwner": "acme",
+      "repoName": "backend",
+      "baseBranch": "main",
+      "branchName": "agent/add-error-handling",
+      "status": "completed",
+      "createdAt": 1700000000000,
+      "updatedAt": 1700003600000
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+---
+
+## Create Session
+
+```http
+POST /sessions
+```
+
+**Request Body:**
+
+```json
+{
+  "repoOwner": "acme",
+  "repoName": "backend",
+  "baseBranch": "main",
+  "title": "Add error handling to payment processor",
+  "model": "anthropic/claude-sonnet-4-6",
+  "reasoningEffort": "high"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `repoOwner` | string | Yes | GitHub organization or username |
+| `repoName` | string | Yes | Repository name |
+| `baseBranch` | string | No | Base branch (defaults to repo default) |
+| `title` | string | No | Session title |
+| `model` | string | No | AI model ID (defaults to system default) |
+| `reasoningEffort` | string | No | `none`, `low`, `medium`, `high`, `xhigh`, `max` |
+
+**Response:** The created `Session` object.
+
+---
+
+## Get Session
+
+```http
+GET /sessions/:id
+```
+
+Returns full session state including sandbox status, message queue, and latest artifact.
+
+---
+
+## Delete Session
+
+```http
+DELETE /sessions/:id
+```
+
+Permanently deletes the session and all associated data.
+
+---
+
+## Enqueue Prompt
+
+```http
+POST /sessions/:id/prompt
+```
+
+Sends a prompt to the session. If a sandbox isn't running, one is spawned or restored automatically.
+
+**Request Body:**
+
+```json
+{
+  "content": "Add input validation to the user registration endpoint",
+  "attachments": []
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `content` | string | Yes | The prompt text |
+| `attachments` | array | No | File attachments |
+
+**Response:**
+
+```json
+{
+  "messageId": "msg_xyz789",
+  "queuePosition": 0
+}
+```
+
+---
+
+## Stop Execution
+
+```http
+POST /sessions/:id/stop
+```
+
+Stops the currently running prompt. The agent finishes its current action before stopping.
+
+---
+
+## Archive / Unarchive
+
+```http
+POST /sessions/:id/archive
+POST /sessions/:id/unarchive
+```
+
+Archiving hides a session from the default list. It can be restored at any time.
+
+---
+
+## List Messages
+
+```http
+GET /sessions/:id/messages
+```
+
+Returns the message history for the session.
+
+**Response:**
+
+```json
+{
+  "messages": [
+    {
+      "id": "msg_xyz789",
+      "authorId": "usr_abc",
+      "content": "Add input validation...",
+      "source": "web",
+      "status": "completed",
+      "createdAt": 1700000000000
+    }
+  ]
+}
+```
+
+### Message Status
+
+| Status | Description |
+|--------|-------------|
+| `pending` | Queued, not yet dispatched |
+| `processing` | Being processed by the agent |
+| `completed` | Agent finished processing |
+| `failed` | Processing failed |
+
+### Message Source
+
+| Source | Description |
+|--------|-------------|
+| `web` | Sent from the web UI |
+| `slack` | Sent via Slack bot |
+| `linear` | Sent via Linear bot |
+| `github` | Sent via GitHub bot |
+| `automation` | Sent by an automation |
+| `extension` | Sent via browser extension |
+
+---
+
+## List Events
+
+```http
+GET /sessions/:id/events
+```
+
+Returns paginated agent events for the session.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `messageId` | string | Filter events for a specific message |
+| `limit` | number | Number of results (default: 50) |
+| `cursor` | string | Pagination cursor |
+
+**Response:**
+
+```json
+{
+  "events": [
+    {
+      "id": "evt_123",
+      "type": "token",
+      "data": { "content": "I'll start by..." },
+      "messageId": "msg_xyz789",
+      "createdAt": 1700000001000
+    }
+  ],
+  "nextCursor": "cursor_abc"
+}
+```
+
+### Event Types
+
+| Type | Description |
+|------|-------------|
+| `heartbeat` | Sandbox heartbeat |
+| `token` | Agent output token |
+| `tool_call` | Agent tool invocation |
+| `tool_result` | Tool execution result |
+| `step_start` | Agent step started |
+| `step_finish` | Agent step completed |
+| `git_sync` | Git sync progress |
+| `error` | Agent error |
+| `execution_complete` | All processing finished |
+| `artifact` | PR or screenshot created |
+| `push_complete` | Git push succeeded |
+| `push_error` | Git push failed |
+| `user_message` | User message logged to agent context |
+
+---
+
+## List Artifacts
+
+```http
+GET /sessions/:id/artifacts
+```
+
+Returns all artifacts (PRs, screenshots) created during the session.
+
+### Artifact Types
+
+| Type | Description |
+|------|-------------|
+| `pr` | GitHub pull request |
+| `screenshot` | Browser screenshot |
+| `preview` | Preview URL |
+| `branch` | Git branch reference |
+
+---
+
+## Create Pull Request
+
+```http
+POST /sessions/:id/pr
+```
+
+Creates a GitHub pull request using the authenticated user's OAuth token (so the PR appears as created by the user, not a bot).
+
+**Request Body:**
+
+```json
+{
+  "title": "Add input validation to user registration",
+  "body": "## Changes\n\n- Added validation for email format...",
+  "baseBranch": "main"
+}
+```
+
+---
+
+## WebSocket Token
+
+```http
+POST /sessions/:id/ws-token
+```
+
+Generates a short-lived token for authenticating a WebSocket connection to this session.
+
+**Response:**
+
+```json
+{ "token": "wst_..." }
+```
+
+Tokens are single-use and expire after a short window. See [WebSocket Protocol](/api-reference/websocket) for connection details.

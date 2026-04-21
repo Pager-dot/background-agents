@@ -1,0 +1,122 @@
+---
+title: "CI/CD Setup"
+description: "Configure GitHub Actions for automatic deployments on push to main."
+icon: "arrows-rotate"
+---
+
+## Overview
+
+Pushing to `main` auto-deploys changed services:
+
+| Trigger Files | What Deploys |
+|--------------|-------------|
+| `terraform/`, `packages/*/` | Terraform (control plane + D1 migrations + web if `web_platform = "cloudflare"`) |
+| `packages/web/`, `packages/shared/` | Vercel (if `web_platform = "vercel"`) |
+| `packages/modal-infra/` | Modal data plane (via Terraform apply) |
+
+CI also runs lint, typecheck, and tests for all TypeScript and Python packages on every push and PR.
+
+---
+
+## Add GitHub Secrets
+
+Go to your fork's **Settings → Secrets and variables → Actions** and add:
+
+| Secret | Value |
+|--------|-------|
+| `CLOUDFLARE_API_TOKEN` | Your Cloudflare API token |
+| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID |
+| `CLOUDFLARE_WORKER_SUBDOMAIN` | Your workers.dev subdomain |
+| `DEPLOYMENT_NAME` | Your deployment name |
+| `R2_ACCESS_KEY_ID` | R2 access key ID |
+| `R2_SECRET_ACCESS_KEY` | R2 secret access key |
+| `WEB_PLATFORM` | `vercel` or `cloudflare` |
+| `VERCEL_API_TOKEN` | *(only if `web_platform = "vercel"`)* |
+| `VERCEL_TEAM_ID` | *(only if `web_platform = "vercel"`)* |
+| `VERCEL_PROJECT_ID` | *(only if `web_platform = "vercel"`)* |
+| `NEXTAUTH_URL` | Your web app URL |
+| `MODAL_TOKEN_ID` | Modal token ID |
+| `MODAL_TOKEN_SECRET` | Modal token secret |
+| `MODAL_WORKSPACE` | Modal workspace name |
+| `GH_OAUTH_CLIENT_ID` | GitHub App OAuth client ID |
+| `GH_OAUTH_CLIENT_SECRET` | GitHub App OAuth client secret |
+| `GH_APP_ID` | GitHub App ID |
+| `GH_APP_PRIVATE_KEY` | GitHub App private key (PKCS#8 format) |
+| `GH_APP_INSTALLATION_ID` | GitHub App installation ID |
+| `ENABLE_SLACK_BOT` | `true` to deploy Slack bot, `false` to skip |
+| `SLACK_BOT_TOKEN` | *(required if `ENABLE_SLACK_BOT=true`)* |
+| `SLACK_SIGNING_SECRET` | *(required if `ENABLE_SLACK_BOT=true`)* |
+| `ANTHROPIC_API_KEY` | Anthropic API key |
+| `TOKEN_ENCRYPTION_KEY` | Generated encryption key (OAuth tokens) |
+| `REPO_SECRETS_ENCRYPTION_KEY` | Generated encryption key (repo secrets) |
+| `INTERNAL_CALLBACK_SECRET` | Generated callback secret |
+| `MODAL_API_SECRET` | Generated Modal API secret |
+| `NEXTAUTH_SECRET` | Generated NextAuth secret |
+| `ALLOWED_USERS` | Comma-separated GitHub usernames |
+| `ALLOWED_EMAIL_DOMAINS` | Comma-separated email domains |
+| `ENABLE_GITHUB_BOT` | `true` to deploy GitHub bot worker |
+| `GH_WEBHOOK_SECRET` | *(required if GitHub bot enabled)* |
+| `GH_BOT_USERNAME` | GitHub App bot username, e.g. `my-app[bot]` |
+
+---
+
+## Bulk Upload with `gh` CLI
+
+Instead of adding secrets one by one, create a `.secrets` file (don't commit it):
+
+```bash
+CLOUDFLARE_API_TOKEN=your-token
+CLOUDFLARE_ACCOUNT_ID=your-account-id
+ANTHROPIC_API_KEY=sk-ant-...
+# ... all secrets
+```
+
+Upload all at once:
+
+```bash
+gh secret set -f .secrets
+```
+
+For multiline secrets like `GH_APP_PRIVATE_KEY`, set them separately to preserve PEM formatting:
+
+```bash
+gh secret set GH_APP_PRIVATE_KEY < private-key-pkcs8.pem
+```
+
+---
+
+## Updating Your Deployment
+
+After pulling upstream changes:
+
+```bash
+# Pull latest changes
+git pull upstream main
+
+# Rebuild shared package if it changed
+npm run build -w @open-inspect/shared
+
+# Re-run Terraform (only changes what's needed)
+cd terraform/environments/production
+terraform apply
+```
+
+---
+
+## What CI Runs
+
+On every push and pull request, CI automatically runs:
+
+```bash
+# TypeScript
+npm run lint
+npm run typecheck
+npm test
+
+# Python
+cd packages/modal-infra
+pytest tests/ -v
+ruff check
+```
+
+On merge to `main`, CI runs `terraform apply` and Vercel deploys (depending on configuration).

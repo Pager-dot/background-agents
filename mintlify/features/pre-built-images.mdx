@@ -1,0 +1,128 @@
+---
+title: "Pre-Built Images"
+description: "Speed up session starts from minutes to seconds by pre-building repo snapshots on a schedule."
+icon: "images"
+---
+
+Pre-built images keep a ready-to-go snapshot of your repository that's refreshed automatically every 30 minutes. New sessions start from this snapshot and only need to pull the latest commits.
+
+---
+
+## Why Use Pre-Built Images?
+
+Without pre-built images, every session must:
+
+1. Clone your repository from scratch
+2. Install dependencies (`npm install`, `pip install`, etc.)
+3. Run any setup commands
+
+For large repositories this can take 30 seconds to several minutes. With pre-built images, all that work is done ahead of time.
+
+| Startup Path | Typical Time |
+|-------------|-------------|
+| Fresh start (no image) | 30 seconds – 5+ minutes |
+| Pre-built image | Seconds |
+
+---
+
+## Getting Started
+
+<Steps>
+  <Step title="Enable for a repository">
+    Go to **Settings > Images** in the web dashboard, find the repository, and toggle the switch to **enable** pre-built images.
+  </Step>
+  <Step title="Trigger the first build (optional)">
+    Click the refresh button to trigger the first build immediately. Otherwise, the first build runs on the next 30-minute scheduler cycle.
+  </Step>
+</Steps>
+
+Once enabled, images rebuild automatically every 30 minutes when new commits are pushed. Your next session uses the pre-built image automatically — no workflow changes needed.
+
+---
+
+## Build Status Indicators
+
+| Status | Meaning |
+|--------|---------|
+| **Ready** (green) | Pre-built image available. Shows commit, build time, and age. |
+| **Building** (amber, pulsing) | Build in progress |
+| **Failed** (red) | Last build failed — error message shown. System retries on next schedule. |
+| **No image** | Building is enabled but no build has completed yet |
+| **Disabled** | Image building is turned off for this repository |
+
+---
+
+## How It Works
+
+### Automatic Rebuilds
+
+The scheduler runs every 30 minutes and:
+1. Compares latest commit on your default branch with the commit the current image was built from
+2. Triggers a fresh build if there are new commits
+3. Skips if nothing has changed
+
+Your pre-built image is never more than ~30 minutes behind your latest code.
+
+### What Happens During a Build
+
+The build runs the same setup steps as a normal session:
+1. Clones your repository
+2. Runs `.openinspect/setup.sh` (if present)
+3. Saves a snapshot of the resulting environment
+
+Everything your setup script installs — dependencies, build artifacts, caches — is captured.
+
+### What Happens at Session Start
+
+1. Sandbox starts from the saved snapshot (code + dependencies already present)
+2. Fast git sync pulls any commits since the image was built
+3. Coding agent starts immediately
+
+Your `setup.sh` is **not** re-run — it already ran during the build. This is the main source of time savings.
+
+<Note>
+  If no pre-built image is available (disabled, first build not finished, or last build failed), sessions fall back to the normal startup flow automatically. You're never blocked from starting a session.
+</Note>
+
+---
+
+## Optimizing Your Setup Script
+
+The more work you front-load into `.openinspect/setup.sh`, the faster sessions start:
+
+- **Install all dependencies** — `npm install`, `pip install -r requirements.txt`, `bundle install`
+- **Run build steps** — `npm run build`, `cargo build`, code generation, compiled assets
+- **Warm caches** — Running your test suite once means cached files are available for subsequent runs
+- **Pre-download large resources** — Models, datasets, or any large files the agent might need
+
+Build duration doesn't matter — builds run in the background and users always get the last *successfully* built image. A 10-minute build that saves 10 minutes per session is worth it.
+
+---
+
+## Disabling Pre-Built Images
+
+Toggle the switch off in **Settings > Images**. New sessions return to the normal startup flow. Existing sessions are not affected.
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Build keeps failing">
+    Check the error message in the Images settings page. Common causes:
+
+    - **Setup script errors** — Your `.openinspect/setup.sh` is failing. Test it locally or check for commands that might not work on Debian Linux.
+    - **Timeout** — Builds have a 30-minute limit. Optimize your setup script (faster package managers, reduce dependencies).
+
+    The system retries automatically on the next scheduled run.
+  </Accordion>
+  <Accordion title="Session isn't using the pre-built image">
+    Verify that:
+    - Image building is **enabled** for the repository in Settings > Images
+    - Status shows **Ready** (not Building or Failed)
+    - You're creating a session for the same repository the image was built for
+  </Accordion>
+  <Accordion title="Image seems stale">
+    Pre-built images rebuild every 30 minutes when new commits are detected. Click the refresh button in **Settings > Images** to trigger a manual rebuild immediately.
+  </Accordion>
+</AccordionGroup>

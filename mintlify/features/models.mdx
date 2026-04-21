@@ -1,0 +1,137 @@
+---
+title: "AI Models"
+description: "Supported AI models, reasoning effort levels, and how to configure OpenAI Codex via OAuth."
+icon: "microchip"
+---
+
+Open-Inspect supports multiple AI providers. Choose the model that fits your task with per-session reasoning effort controls.
+
+---
+
+## Supported Models
+
+<Tabs>
+  <Tab title="Anthropic Claude">
+    | Model | ID |
+    |-------|-----|
+    | Claude Haiku 4.5 | `anthropic/claude-haiku-4-5` |
+    | Claude Sonnet 4.5 | `anthropic/claude-sonnet-4-5` |
+    | Claude Sonnet 4.6 | `anthropic/claude-sonnet-4-6` *(default)* |
+    | Claude Opus 4.5 | `anthropic/claude-opus-4-5` |
+    | Claude Opus 4.6 | `anthropic/claude-opus-4-6` |
+
+    Anthropic models work out of the box when `ANTHROPIC_API_KEY` is configured (set in Terraform or as a global secret for Daytona).
+  </Tab>
+  <Tab title="OpenAI">
+    | Model | ID | Description |
+    |-------|-----|-------------|
+    | GPT 5.2 | `openai/gpt-5.2` | Fast baseline (400K ctx) |
+    | GPT 5.4 | `openai/gpt-5.4` | Latest flagship |
+    | GPT 5.2 Codex | `openai/gpt-5.2-codex` | Optimized for code |
+    | GPT 5.3 Codex | `openai/gpt-5.3-codex` | Latest Codex variant |
+    | GPT 5.3 Codex Spark | `openai/gpt-5.3-codex-spark` | — |
+
+    OpenAI models use your ChatGPT subscription via OAuth. See [OpenAI Codex Setup](#openai-codex-setup) below.
+  </Tab>
+  <Tab title="OpenCode Zen">
+    | Model | ID |
+    |-------|-----|
+    | Kimi K2.5 | `opencode/kimi-k2.5` |
+    | MiniMax M2.5 | `opencode/minimax-m2.5` |
+    | GLM 5 | `opencode/glm-5` |
+
+    OpenCode Zen models are opt-in.
+  </Tab>
+</Tabs>
+
+---
+
+## Reasoning Effort
+
+Models that support extended thinking accept a reasoning effort level:
+
+| Level | Description |
+|-------|-------------|
+| `none` | No extended reasoning |
+| `low` | Minimal reasoning |
+| `medium` | Balanced |
+| `high` | Thorough reasoning |
+| `xhigh` | Extra high |
+| `max` | Maximum (slowest, most thorough) |
+
+Set reasoning effort when creating a session or in automation settings. Default for Codex models is `high`.
+
+---
+
+## Default Model
+
+The system default is `anthropic/claude-sonnet-4-6`. Users can override the default in session creation and in Slack App Home settings.
+
+---
+
+## OpenAI Codex Setup
+
+OpenAI models use your existing ChatGPT subscription via OAuth — no separate API key required.
+
+### Step 1: Obtain OAuth Credentials
+
+<Steps>
+  <Step title="Install OpenCode">
+    If you haven't already, install [OpenCode](https://opencode.ai).
+  </Step>
+  <Step title="Authenticate with OpenAI">
+    Launch OpenCode and run `/connect setup`, then select **ChatGPT** and complete the OAuth login flow in your browser.
+
+    ```bash
+    opencode
+    # Inside OpenCode:
+    /connect setup
+    ```
+  </Step>
+  <Step title="Copy credentials">
+    After authenticating, open the credentials file:
+
+    ```bash
+    cat ~/.local/share/opencode/auth.json
+    ```
+
+    From the `openai` section, copy:
+    - `refresh` — the refresh token
+    - `accountId` — your ChatGPT account ID
+  </Step>
+</Steps>
+
+### Step 2: Add Secrets to Your Deployment
+
+Go to **Settings > Secrets**, select your repository, and add:
+
+| Secret | Value |
+|--------|-------|
+| `OPENAI_OAUTH_REFRESH_TOKEN` | The `refresh` token |
+| `OPENAI_OAUTH_ACCOUNT_ID` | The `accountId` |
+
+### Step 3: Select an OpenAI Model
+
+When creating a new session, choose any OpenAI model from the model dropdown.
+
+### How It Works
+
+Your refresh token is stored securely in the control plane and never exposed to sandboxes. When a sandbox needs to make an OpenAI API call, it requests a short-lived access token from the control plane, which handles token refresh and rotation automatically.
+
+Credentials are scoped per repository, so different repos can use different OpenAI accounts.
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Model doesn't appear in the dropdown">
+    Ensure your deployment is up to date. OpenAI model support requires the latest version of Open-Inspect.
+  </Accordion>
+  <Accordion title="Session fails to start with an OpenAI model">
+    Verify that both `OPENAI_OAUTH_REFRESH_TOKEN` and `OPENAI_OAUTH_ACCOUNT_ID` are set in your repository secrets. The refresh token may have expired — repeat the OAuth flow and update the secrets.
+  </Accordion>
+  <Accordion title="Token refresh failed errors">
+    The OAuth refresh token was revoked or expired. Re-authenticate by repeating Step 1 and updating the secrets.
+  </Accordion>
+</AccordionGroup>

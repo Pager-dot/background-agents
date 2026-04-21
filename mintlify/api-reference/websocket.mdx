@@ -1,0 +1,292 @@
+---
+title: "WebSocket Protocol"
+description: "Real-time event streaming via WebSocket — connection lifecycle, message formats, and presence protocol."
+icon: "plug"
+---
+
+## Connection
+
+```
+wss://open-inspect-control-plane-{deployment_name}.{subdomain}.workers.dev/sessions/:id/ws?token={token}
+```
+
+1. Generate a token via `POST /sessions/:id/ws-token`
+2. Open a WebSocket connection with the token as a query parameter
+3. Send a `subscribe` message immediately after connecting
+
+Tokens are single-use and expire after a short window.
+
+---
+
+## Client → Server Messages
+
+### ping
+
+```json
+{ "type": "ping" }
+```
+
+Server responds with `{ "type": "pong" }`. Use to keep the connection alive.
+
+### subscribe
+
+```json
+{
+  "type": "subscribe",
+  "token": "wst_...",
+  "clientId": "browser-abc123"
+}
+```
+
+Must be sent immediately after connecting. Registers the client for event delivery. Server responds with `subscribed`.
+
+### prompt
+
+```json
+{
+  "type": "prompt",
+  "content": "Add input validation to the registration endpoint",
+  "attachments": []
+}
+```
+
+Enqueues a prompt to the session. Equivalent to `POST /sessions/:id/prompt`.
+
+### stop
+
+```json
+{ "type": "stop" }
+```
+
+Stops the currently running prompt.
+
+### typing
+
+```json
+{ "type": "typing" }
+```
+
+Signals that the user is composing a prompt. Triggers proactive sandbox warming in the control plane.
+
+### presence
+
+```json
+{
+  "type": "presence",
+  "status": "active",
+  "cursor": null
+}
+```
+
+Updates the user's presence state in the session.
+
+---
+
+## Server → Client Messages
+
+### pong
+
+```json
+{ "type": "pong" }
+```
+
+Response to `ping`.
+
+### subscribed
+
+```json
+{ "type": "subscribed" }
+```
+
+Confirms the subscription was accepted. The client will now receive session events.
+
+### prompt_queued
+
+```json
+{
+  "type": "prompt_queued",
+  "messageId": "msg_xyz",
+  "queuePosition": 0
+}
+```
+
+Sent when a prompt is successfully enqueued.
+
+### sandbox_spawning
+
+```json
+{ "type": "sandbox_spawning" }
+```
+
+Sent when a new sandbox is being created for the session.
+
+### sandbox_warming
+
+```json
+{ "type": "sandbox_warming" }
+```
+
+Sent when an existing sandbox snapshot is being restored.
+
+### sandbox_ready
+
+```json
+{ "type": "sandbox_ready", "sandboxId": "sbx_abc123" }
+```
+
+Sandbox is ready to process prompts.
+
+### sandbox_event
+
+```json
+{
+  "type": "sandbox_event",
+  "data": {
+    "type": "token",
+    "content": "I'll start by examining...",
+    "messageId": "msg_xyz"
+  }
+}
+```
+
+Carries an agent event. The `data` field is a `SandboxEvent` — see [Event Types](/api-reference/sessions#event-types) for the full discriminated union.
+
+### sandbox_status
+
+```json
+{
+  "type": "sandbox_status",
+  "status": "running"
+}
+```
+
+Sandbox state changed.
+
+### sandbox_error
+
+```json
+{
+  "type": "sandbox_error",
+  "message": "Sandbox failed to start: timeout"
+}
+```
+
+A sandbox-level error occurred.
+
+### artifact_created
+
+```json
+{
+  "type": "artifact_created",
+  "id": "art_abc",
+  "artifactType": "pr",
+  "url": "https://github.com/acme/backend/pull/42"
+}
+```
+
+A PR was created or a screenshot was captured.
+
+### snapshot_saved
+
+```json
+{
+  "type": "snapshot_saved",
+  "imageId": "img_abc123"
+}
+```
+
+Filesystem snapshot was saved. Subsequent sessions for this repo will restore from this snapshot.
+
+### session_status
+
+```json
+{
+  "type": "session_status",
+  "status": "completed"
+}
+```
+
+Session-level status changed.
+
+### presence_sync
+
+```json
+{
+  "type": "presence_sync",
+  "participants": [
+    {
+      "userId": "usr_abc",
+      "name": "Jane",
+      "status": "active",
+      "lastSeen": 1700000000000
+    }
+  ]
+}
+```
+
+Full presence state snapshot, sent on connection and after participant changes.
+
+### presence_update
+
+```json
+{
+  "type": "presence_update",
+  "userId": "usr_abc",
+  "status": "idle"
+}
+```
+
+A single participant's presence changed.
+
+### error
+
+```json
+{
+  "type": "error",
+  "message": "Session not found"
+}
+```
+
+An error occurred. The connection may or may not be closed after this.
+
+---
+
+## Connection Lifecycle
+
+1. **Open** — Connect with `?token=wst_...`
+2. **Subscribe** — Send `{ type: "subscribe", token, clientId }`
+3. **Receive** — Get `subscribed` + `presence_sync`
+4. **Stream** — Receive real-time events
+5. **Reconnect** — On disconnect, generate a new token and reconnect. The server supports the WebSocket Hibernation API, so idle connections don't consume compute.
+
+### Reconnection Strategy
+
+The web client uses exponential backoff for reconnection:
+
+```typescript
+const delay = Math.min(1000 * 2 ** attempt, 30000);
+```
+
+---
+
+## Sandbox Status Values
+
+| Status | Description |
+|--------|-------------|
+| `pending` | Not yet started |
+| `spawning` | Container being created |
+| `connecting` | Agent connecting to control plane |
+| `warming` | Snapshot being restored |
+| `syncing` | Git sync in progress |
+| `ready` | Ready to receive prompts |
+| `running` | Processing a prompt |
+| `stale` | Heartbeat missed |
+| `snapshotting` | Taking a filesystem snapshot |
+| `stopped` | Sandbox shut down |
+| `failed` | Sandbox failed to start or crashed |
+
+---
+
+## Multiplayer
+
+Multiple WebSocket clients can connect to the same session simultaneously. All clients receive the same event stream. Presence is tracked per client and broadcast to all participants via `presence_sync` and `presence_update` messages.

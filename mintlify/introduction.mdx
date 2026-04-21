@@ -1,0 +1,99 @@
+---
+title: "Introduction"
+description: "Open-Inspect is an open-source background coding agent system inspired by Ramp's Inspect."
+icon: "house"
+---
+
+## What is Open-Inspect?
+
+Open-Inspect provides a hosted background coding agent that works on your repositories in the cloud — independently of your connection. You send a prompt, optionally close your laptop, and check the results later.
+
+<CardGroup cols={2}>
+  <Card title="Get Started" icon="rocket" href="/setup/getting-started">
+    Deploy your own instance in ~1-3 hours using Terraform
+  </Card>
+  <Card title="How It Works" icon="book-open" href="/how-it-works">
+    Learn the three-tier architecture and session lifecycle
+  </Card>
+  <Card title="Local Development" icon="laptop-code" href="/setup/local-development">
+    Run the web app locally against a deployed backend
+  </Card>
+  <Card title="API Reference" icon="rectangle-terminal" href="/api-reference/overview">
+    HTTP endpoints and WebSocket protocol reference
+  </Card>
+</CardGroup>
+
+---
+
+## Key Capabilities
+
+<CardGroup cols={2}>
+  <Card title="Background Execution" icon="clock">
+    Sessions run independently. Fire a prompt and check results when ready — no need to stay connected.
+  </Card>
+  <Card title="Multiplayer Sessions" icon="users">
+    Multiple users can join a session, send prompts, and see events in real-time with presence indicators.
+  </Card>
+  <Card title="Automations" icon="bolt">
+    Schedule recurring tasks via cron, react to Sentry alerts, or trigger from any system via webhook.
+  </Card>
+  <Card title="Multi-Provider Models" icon="microchip">
+    Choose from Anthropic Claude, OpenAI GPT/Codex, or OpenCode Zen models — per session.
+  </Card>
+  <Card title="Full Dev Environment" icon="terminal">
+    Each sandbox includes Node.js 22, Python 3.12, git, headless Chrome, and VS Code (code-server).
+  </Card>
+  <Card title="Parallel Sub-Tasks" icon="code-branch">
+    Agents can decompose work into parallel child sessions running on separate branches simultaneously.
+  </Card>
+</CardGroup>
+
+---
+
+## Client Integrations
+
+Interact with agents from wherever your team already works:
+
+| Client | Description |
+|--------|-------------|
+| **Web UI** | Full session management with real-time streaming, model selectors, terminal panel, and multiplayer presence |
+| **Slack Bot** | @mention or DM to start a session; replies thread back with results |
+| **GitHub Bot** | Auto-review PRs, respond to @mentions in PR comments, or trigger on reviewer assignment |
+| **Linear Bot** | Assign an issue to the agent — it creates a coding session, posts progress, and links the PR |
+| **Webhooks** | Trigger sessions from any external system via authenticated HTTP POST |
+
+---
+
+## Architecture Overview
+
+Open-Inspect spans three cloud tiers:
+
+```
+Clients (Web, Slack, GitHub, Linear)
+         │
+         ▼
+Control Plane (Cloudflare Workers + Durable Objects)
+  — Session state, WebSocket hub, GitHub integration
+         │
+         ▼
+Data Plane (Modal or Daytona)
+  — Isolated sandboxes running OpenCode agent
+```
+
+See [How It Works](/how-it-works) for a detailed breakdown.
+
+---
+
+## Security Model
+
+<Warning>
+  Open-Inspect is designed for **single-tenant deployment only**. All users share the same GitHub App installation and can access any repository the App is installed on. Deploy behind your organization's SSO or VPN.
+</Warning>
+
+See [Security Model](/how-it-works#security-model) for the full details and deployment recommendations.
+
+---
+
+## License
+
+Open-Inspect is MIT licensed. Inspired by [Ramp's Inspect](https://builders.ramp.com/post/why-we-built-our-background-agent).

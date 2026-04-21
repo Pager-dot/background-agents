@@ -1,0 +1,409 @@
+---
+title: "Getting Started"
+description: "Deploy your own Open-Inspect instance using Terraform. Covers all cloud providers, GitHub App creation, and two-phase deployment."
+icon: "rocket"
+---
+
+<Warning>
+  Open-Inspect is designed for **single-tenant deployment only**. All users share the same GitHub App credentials and can access any repository the App is installed on. See the [Security Model](/how-it-works#security-model) for details.
+</Warning>
+
+## Overview
+
+Open-Inspect uses Terraform to automate deployment across cloud providers:
+
+| Provider | Purpose | What Terraform Creates |
+|----------|---------|----------------------|
+| **Cloudflare** | Control plane, session state | Workers, KV, Durable Objects, D1 |
+| **Vercel** or **Cloudflare Workers** | Web application | Project + env vars (Vercel) or Worker via OpenNext (Cloudflare) |
+| **Modal** or **Daytona** | Sandbox execution | Modal app deployment or control-plane config for Daytona |
+
+<Tip>
+  Before starting, copy `terraform/environments/production/terraform.tfvars.example` to `terraform.tfvars` and fill in values as you collect credentials in the steps below.
+</Tip>
+
+---
+
+## Prerequisites
+
+### Required Accounts
+
+| Service | Purpose |
+|---------|---------|
+| [Cloudflare](https://dash.cloudflare.com) | Control plane hosting (+ web app if using Cloudflare platform) |
+| [Vercel](https://vercel.com) *(optional)* | Web app hosting (only if `web_platform = "vercel"`) |
+| [Modal](https://modal.com) *(optional)* | Sandbox infrastructure when `sandbox_provider = "modal"` |
+| [Daytona](https://app.daytona.io) *(optional)* | Sandbox infrastructure when `sandbox_provider = "daytona"` |
+| [GitHub](https://github.com/settings/developers) | OAuth + repository access |
+| [Anthropic](https://console.anthropic.com) | Claude API |
+
+### Required Tools
+
+```bash
+# Terraform 1.9.0+
+brew install terraform
+
+# Node.js 22+
+brew install node@22
+
+# Python 3.12+, uv, and Modal CLI
+brew install python@3.12 uv
+pipx install modal
+modal setup
+
+# Wrangler CLI (for initial R2 bucket setup)
+npm install -g wrangler
+```
+
+---
+
+## Step 1: Fork the Repository
+
+Fork the repository to your GitHub account or organization, then clone it:
+
+```bash
+git clone https://github.com/YOUR-USERNAME/background-agents.git
+cd background-agents
+npm install
+
+# Build shared package (required before Terraform deployment)
+npm run build -w @open-inspect/shared
+```
+
+---
+
+## Step 2: Create Cloud Provider Credentials
+
+### Cloudflare
+
+<Steps>
+  <Step title="Note your Account ID">
+    Visible in the Cloudflare dashboard URL or account overview.
+  </Step>
+  <Step title="Note your Workers subdomain">
+    Go to **Workers & Pages → Overview** and look in the bottom-right for `*.YOUR-SUBDOMAIN.workers.dev`.
+  </Step>
+  <Step title="Create API Token">
+    Go to [API Tokens](https://dash.cloudflare.com/profile/api-tokens), use the **"Edit Cloudflare Workers"** template, and add permissions: Workers KV Storage (Edit), Workers R2 Storage (Edit).
+  </Step>
+  <Step title="Enable R2">
+    Add payment info (first 10 GB/month is free), then create the Terraform state bucket:
+    ```bash
+    wrangler login
+    wrangler r2 bucket create open-inspect-terraform-state
+    ```
+    Create an R2 API Token with **Object Read & Write** permission and note the **Access Key ID** and **Secret Access Key**.
+  </Step>
+</Steps>
+
+### Modal (if using Modal sandboxes)
+
+1. Go to [Modal Settings](https://modal.com/settings) → **API Tokens → New Token**
+2. Note the **Token ID**, **Token Secret**, and your **Workspace name**
+
+### Daytona (if using Daytona sandboxes)
+
+1. Create a [Daytona](https://app.daytona.io) account and generate an API key with **Sandboxes** and **Snapshots** read/write permissions
+2. Note the **API URL** and **API key**
+3. Seed the base snapshot:
+   ```bash
+   cd packages/daytona-infra
+   pip install daytona
+   python -m src.bootstrap --force
+   ```
+4. Set `sandbox_provider = "daytona"` in `terraform.tfvars`
+
+<Note>
+  Unlike Modal, Daytona does not automatically inject LLM API keys. Add `ANTHROPIC_API_KEY` as a global secret in Settings after deploying. See [Secrets Management](/features/secrets).
+</Note>
+
+### Anthropic
+
+1. Go to [Anthropic Console](https://console.anthropic.com) and create an API key (starts with `sk-ant-`)
+
+### Vercel (if using Vercel for web)
+
+<Note>
+  If deploying the web app to **Cloudflare Workers** (`web_platform = "cloudflare"`), skip this section. Do **not** set `vercel_api_token` or `vercel_team_id` to empty strings — leave them unset so dummy defaults are used.
+</Note>
+
+1. Go to [Vercel Account Settings → Tokens](https://vercel.com/account/tokens) and create a token
+2. Note your **Team/Account ID** from Settings (even personal accounts have one, starting with `team_`)
+
+---
+
+## Step 3: Create GitHub App
+
+You need one GitHub App for both OAuth and repository access.
+
+<Steps>
+  <Step title="Create the App">
+    Go to [GitHub Apps](https://github.com/settings/apps) and click **New GitHub App**.
+
+    - **Name**: `Open-Inspect-YourName` (must be globally unique)
+    - **Homepage URL**: Your web app URL
+    - **Webhook**: Uncheck "Active"
+    - **Callback URL**: `{your-web-app-url}/api/auth/callback/github`
+  </Step>
+  <Step title="Set Repository Permissions">
+    - Contents: **Read & Write**
+    - Issues: **Read & Write** *(required if enabling GitHub bot)*
+    - Pull requests: **Read & Write**
+    - Metadata: **Read-only**
+  </Step>
+  <Step title="Generate credentials">
+    After creating the app:
+    1. Note the **App ID** and **Client ID**
+    2. Click **Generate a new client secret** and note it
+    3. Click **Generate a private key** (downloads a `.pem` file)
+    4. Convert to PKCS#8 format (required for Cloudflare Workers):
+    ```bash
+    openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt \
+      -in ~/Downloads/your-app-name.*.private-key.pem \
+      -out private-key-pkcs8.pem
+    ```
+  </Step>
+  <Step title="Install the App">
+    Click **Install App** in the sidebar, select specific repositories you want Open-Inspect to access, and note the **Installation ID** from the URL:
+    ```
+    https://github.com/settings/installations/INSTALLATION_ID
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Step 4: Create Slack App (Optional)
+
+Skip if you don't need Slack integration. See [Slack Integration](/integrations/slack) for the full setup.
+
+---
+
+## Step 5: Generate Security Secrets
+
+```bash
+# Token encryption key
+echo "token_encryption_key: $(openssl rand -base64 32)"
+
+# Repo secrets encryption key
+echo "repo_secrets_encryption_key: $(openssl rand -base64 32)"
+
+# Internal callback secret
+echo "internal_callback_secret: $(openssl rand -base64 32)"
+
+# Modal API secret
+echo "modal_api_secret: $(openssl rand -hex 32)"
+
+# NextAuth secret
+echo "nextauth_secret: $(openssl rand -base64 32)"
+
+# GitHub webhook secret (only if enabling GitHub bot)
+echo "github_webhook_secret: $(openssl rand -hex 32)"
+```
+
+Save these somewhere secure — you'll need them in the next step.
+
+---
+
+## Step 6: Configure Terraform
+
+```bash
+cd terraform/environments/production
+cp terraform.tfvars.example terraform.tfvars
+cp backend.tfvars.example backend.tfvars
+```
+
+### `backend.tfvars`
+
+```hcl
+access_key = "your-r2-access-key-id"
+secret_key = "your-r2-secret-access-key"
+endpoints = {
+  s3 = "https://YOUR_CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com"
+}
+```
+
+### `terraform.tfvars`
+
+```hcl
+# Provider Authentication
+cloudflare_api_token        = "your-cloudflare-api-token"
+cloudflare_account_id       = "your-account-id"
+cloudflare_worker_subdomain = "your-subdomain"
+
+# Web platform: "vercel" or "cloudflare"
+web_platform                = "vercel"
+
+# Modal (only for sandbox_provider = "modal")
+modal_token_id     = "your-modal-token-id"
+modal_token_secret = "your-modal-token-secret"
+modal_workspace    = "your-modal-workspace"
+
+# GitHub App
+github_client_id     = "Iv1.abc123..."
+github_client_secret = "your-client-secret"
+github_app_id              = "123456"
+github_app_installation_id = "12345678"
+github_app_private_key     = <<-EOF
+-----BEGIN PRIVATE KEY-----
+... paste your PKCS#8 key here ...
+-----END PRIVATE KEY-----
+EOF
+
+# Bot integrations (set false to disable)
+enable_slack_bot   = false
+enable_github_bot  = false
+
+# API Keys
+anthropic_api_key = "sk-ant-..."
+
+# Security Secrets
+token_encryption_key        = "your-generated-value"
+repo_secrets_encryption_key = "your-generated-value"
+internal_callback_secret    = "your-generated-value"
+modal_api_secret            = "your-generated-value"
+nextauth_secret             = "your-generated-value"
+
+# Deployment identity
+deployment_name = "your-unique-name"
+project_root    = "../../../"
+
+# Initial deployment: both must be false
+enable_durable_object_bindings = false
+enable_service_bindings        = false
+
+# Access control (set at least one for production)
+allowed_users         = "your-github-username"
+allowed_email_domains = ""
+unsafe_allow_all_users = false
+```
+
+<Warning>
+  Set `allowed_users` or `allowed_email_domains` before production use. Terraform fails if both are empty unless `unsafe_allow_all_users = true` is explicitly set.
+</Warning>
+
+---
+
+## Step 7: Deploy with Terraform
+
+Deployment requires **two phases** due to Cloudflare Durable Object and service binding requirements.
+
+### Phase 1: Initial Deployment
+
+Build workers first:
+
+```bash
+# From repository root
+npm run build -w @open-inspect/control-plane -w @open-inspect/slack-bot -w @open-inspect/github-bot
+```
+
+Then deploy:
+
+```bash
+cd terraform/environments/production
+terraform init -backend-config=backend.tfvars
+terraform apply
+```
+
+### Phase 2: Enable Bindings
+
+After Phase 1 succeeds, update `terraform.tfvars`:
+
+```hcl
+enable_durable_object_bindings = true
+enable_service_bindings        = true
+```
+
+Run again:
+
+```bash
+terraform apply
+```
+
+### Web App Deployment
+
+<Tabs>
+  <Tab title="Cloudflare (web_platform = cloudflare)">
+    Terraform handles the full build and deploy automatically via OpenNext. No manual step needed.
+  </Tab>
+  <Tab title="Vercel (web_platform = vercel)">
+    Terraform creates the Vercel project and sets env vars, but doesn't deploy code.
+
+    ```bash
+    # From repository root
+    npx vercel link --project open-inspect-{deployment_name}
+    npx vercel --prod
+    ```
+
+    Or link your Git repository in the Vercel dashboard for automatic deployments on push.
+  </Tab>
+</Tabs>
+
+---
+
+## Step 8: Verify Deployment
+
+```bash
+# Get verification commands from Terraform
+terraform output verification_commands
+
+# Or manually check each service:
+# Control plane health check
+curl https://open-inspect-control-plane-{deployment_name}.{subdomain}.workers.dev/health
+
+# Modal health check
+curl https://YOUR-WORKSPACE--open-inspect-api-health.modal.run
+```
+
+**Test the full flow:**
+1. Visit your web app URL
+2. Sign in with GitHub
+3. Create a new session with a repository
+4. Send a prompt and verify the sandbox starts
+
+---
+
+## Step 9: Set Up CI/CD (Optional)
+
+See [CI/CD Setup](/setup/cicd) for configuring automatic deployments via GitHub Actions.
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Backend initialization required">
+    ```bash
+    terraform init -backend-config=backend.tfvars
+    ```
+  </Accordion>
+  <Accordion title="GitHub App authentication fails">
+    1. Verify the private key is in PKCS#8 format (starts with `-----BEGIN PRIVATE KEY-----`)
+    2. Check the Installation ID matches your installation
+    3. Verify the callback URL matches your deployed web app URL exactly
+  </Accordion>
+  <Accordion title="Worker deployment fails / dist/index.js not found">
+    Build workers before running `terraform apply`:
+    ```bash
+    npm run build -w @open-inspect/shared
+    npm run build -w @open-inspect/control-plane -w @open-inspect/slack-bot
+    ```
+  </Accordion>
+  <Accordion title="Durable Objects / Service Binding errors">
+    This occurs on first deployment. Follow the two-phase deployment process — deploy with both flags `false` first, then `true`.
+  </Accordion>
+  <Accordion title="Vercel provider error when using Cloudflare web platform">
+    The Vercel provider validates its API token even when no Vercel resources are created. **Fix**: Remove `vercel_api_token` and `vercel_team_id` from `terraform.tfvars` entirely — the built-in defaults (`"unused"`) satisfy the provider's non-empty validation.
+  </Accordion>
+  <Accordion title="Model not found errors (Daytona provider)">
+    Add your `ANTHROPIC_API_KEY` as a global secret in **Settings > Secrets**. Unlike Modal, Daytona does not inject LLM API keys automatically. See [Secrets Management](/features/secrets).
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Security Notes
+
+- **Never commit** `terraform.tfvars` or `backend.tfvars` — the `.gitignore` already excludes them
+- Use GitHub Secrets for CI/CD, not hardcoded values
+- Rotate secrets periodically by updating `terraform.tfvars` and running `terraform apply`

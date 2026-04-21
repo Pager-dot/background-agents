@@ -1,0 +1,63 @@
+---
+title: "Linear Integration"
+description: "Assign Linear issues to the agent — it creates a coding session, posts progress, and links the resulting PR."
+icon: "square-kanban"
+---
+
+The Linear bot listens for issue assignments. When an issue is assigned to the bot, it creates a coding session, posts progress updates as Linear activities, and links the resulting PR to the issue.
+
+---
+
+## Setup
+
+### Configure in Terraform
+
+```hcl
+# Linear bot is included in the standard deployment
+# No additional Terraform variables are required beyond the base deployment
+```
+
+The Linear bot is deployed as a Cloudflare Worker alongside the other integrations.
+
+### Configure the Linear Agent Webhook
+
+In your Linear workspace settings, configure an agent webhook pointing to your deployed Linear bot:
+
+```
+https://open-inspect-linear-bot-{deployment_name}.{subdomain}.workers.dev/webhook
+```
+
+---
+
+## Usage
+
+### Assign an Issue
+
+Assign any Linear issue to your configured agent. Open-Inspect:
+
+1. Creates a coding session for the issue
+2. Uses the issue title and description as the initial prompt
+3. Posts progress updates as Linear activities
+4. Links the resulting PR to the issue when complete
+
+---
+
+## How It Works
+
+1. Linear delivers the assignment webhook to the bot worker
+2. Bot extracts issue details (title, description, repository context)
+3. Bot creates a session in the control plane
+4. Agent processes the task in a Modal sandbox
+5. On completion, bot posts the summary and PR link as Linear activities
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Bot not responding to issue assignments">
+    1. Verify the webhook URL is correctly configured in Linear workspace settings
+    2. Confirm the Linear bot worker is deployed (`enable_linear_bot = true` in your Terraform config if applicable)
+    3. Check the worker logs for webhook delivery errors
+  </Accordion>
+</AccordionGroup>

@@ -1,0 +1,145 @@
+---
+title: "Quickstart"
+description: "Choose your path and get Open-Inspect running in minutes."
+icon: "bolt"
+---
+
+## Choose Your Path
+
+| Path | Best For | Time |
+|------|----------|------|
+| **Path A** | Run the web app locally against an existing backend | ~10–20 min |
+| **Path B** | Contribute code (lint / typecheck / tests) | ~15–30 min |
+| **Path C** | Deploy your own full stack | ~1–3 hours |
+
+---
+
+## Path A — Run Locally Against a Deployed Backend
+
+Use this when you already have a deployed control plane and want to develop the UI locally.
+
+<Steps>
+  <Step title="Clone and install">
+    ```bash
+    git clone https://github.com/ColeMurray/background-agents.git
+    cd background-agents
+    bash .openinspect/setup.sh
+    ```
+  </Step>
+  <Step title="Create your env file">
+    ```bash
+    cp packages/web/.env.example packages/web/.env.local
+    ```
+  </Step>
+  <Step title="Fill in required variables">
+    Edit `packages/web/.env.local`:
+    ```bash
+    GITHUB_CLIENT_ID=your_github_app_client_id
+    GITHUB_CLIENT_SECRET=your_github_app_client_secret
+    NEXTAUTH_URL=http://localhost:3000
+    NEXTAUTH_SECRET=<openssl rand -base64 32>
+    CONTROL_PLANE_URL=https://open-inspect-control-plane-<name>.<subdomain>.workers.dev
+    NEXT_PUBLIC_WS_URL=wss://open-inspect-control-plane-<name>.<subdomain>.workers.dev
+    INTERNAL_CALLBACK_SECRET=your_shared_secret
+    ```
+  </Step>
+  <Step title="Add localhost callback to GitHub App">
+    In GitHub App settings → Callback URLs, add:
+    ```
+    http://localhost:3000/api/auth/callback/github
+    ```
+  </Step>
+  <Step title="Start the dev server">
+    ```bash
+    npm run dev -w @open-inspect/web
+    ```
+    Open [http://localhost:3000](http://localhost:3000), sign in with GitHub, and create a session.
+  </Step>
+</Steps>
+
+---
+
+## Path B — Contributor Workflow
+
+<Steps>
+  <Step title="Bootstrap the repo">
+    ```bash
+    git clone https://github.com/ColeMurray/background-agents.git
+    cd background-agents
+    bash .openinspect/setup.sh
+    ```
+  </Step>
+  <Step title="Run TypeScript checks">
+    ```bash
+    # Build shared package first (required!)
+    npm run build -w @open-inspect/shared
+
+    # Lint, typecheck, and test everything
+    npm run lint
+    npm run typecheck
+    npm test
+    ```
+  </Step>
+  <Step title="Run targeted tests">
+    ```bash
+    npm test -w @open-inspect/control-plane
+    npm run test:integration -w @open-inspect/control-plane
+    npm test -w @open-inspect/web
+    npm test -w @open-inspect/github-bot
+    ```
+  </Step>
+  <Step title="Run Python tests (modal-infra)">
+    ```bash
+    cd packages/modal-infra
+    uv sync --frozen --extra dev
+    pytest tests/ -v
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Path C — Full Self-Hosted Deployment
+
+See the complete [Getting Started guide](/setup/getting-started) for the full Terraform deployment walkthrough covering:
+
+- Cloud provider account setup (Cloudflare, Vercel/Cloudflare, Modal/Daytona)
+- GitHub App creation and configuration
+- Terraform two-phase deployment
+- Slack and GitHub bot setup
+- CI/CD configuration
+
+---
+
+## Prerequisites
+
+<AccordionGroup>
+  <Accordion title="Required tools">
+    ```bash
+    # Node.js 22+
+    node -v
+
+    # npm
+    npm -v
+
+    # git
+    git --version
+    ```
+  </Accordion>
+  <Accordion title="Optional tools (full deployment)">
+    ```bash
+    # Terraform 1.9.0+
+    brew install terraform
+
+    # Python 3.12+ and uv
+    brew install python@3.12 uv
+
+    # Modal CLI
+    pipx install modal
+    modal setup
+
+    # Wrangler CLI
+    npm install -g wrangler
+    ```
+  </Accordion>
+</AccordionGroup>
