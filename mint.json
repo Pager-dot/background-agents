@@ -2,10 +2,10 @@
   "$schema": "https://mintlify.com/schema.json",
   "name": "Open-Inspect",
   "logo": {
-    "light": "/images/logo/light.svg",
-    "dark": "/images/logo/dark.svg"
+    "light": "/mintlify/images/logo/light.svg",
+    "dark": "/mintlify/images/logo/dark.svg"
   },
-  "favicon": "/images/logo/favicon.svg",
+  "favicon": "/mintlify/images/logo/favicon.svg",
   "colors": {
     "primary": "#D97706",
     "light": "#F59E0B",
@@ -23,16 +23,16 @@
   ],
   "topbarCtaButton": {
     "name": "Get Started",
-    "url": "/setup/getting-started"
+    "url": "/mintlify/setup/getting-started"
   },
   "tabs": [
     {
       "name": "Guides",
-      "url": "/"
+      "url": "mintlify"
     },
     {
       "name": "API Reference",
-      "url": "api-reference"
+      "url": "mintlify/api-reference"
     }
   ],
   "anchors": [
@@ -51,49 +51,49 @@
     {
       "group": "Overview",
       "pages": [
-        "introduction",
-        "quickstart",
-        "how-it-works"
+        "mintlify/introduction",
+        "mintlify/quickstart",
+        "mintlify/how-it-works"
       ]
     },
     {
       "group": "Setup & Deployment",
       "pages": [
-        "setup/getting-started",
-        "setup/local-development",
-        "setup/cicd"
+        "mintlify/setup/getting-started",
+        "mintlify/setup/local-development",
+        "mintlify/setup/cicd"
       ]
     },
     {
       "group": "Features",
       "pages": [
-        "features/automations",
-        "features/secrets",
-        "features/models",
-        "features/pre-built-images"
+        "mintlify/features/automations",
+        "mintlify/features/secrets",
+        "mintlify/features/models",
+        "mintlify/features/pre-built-images"
       ]
     },
     {
       "group": "Integrations",
       "pages": [
-        "integrations/slack",
-        "integrations/github-bot",
-        "integrations/linear"
+        "mintlify/integrations/slack",
+        "mintlify/integrations/github-bot",
+        "mintlify/integrations/linear"
       ]
     },
     {
       "group": "API Reference",
       "pages": [
-        "api-reference/overview",
-        "api-reference/sessions",
-        "api-reference/websocket",
-        "api-reference/webhooks"
+        "mintlify/api-reference/overview",
+        "mintlify/api-reference/sessions",
+        "mintlify/api-reference/websocket",
+        "mintlify/api-reference/webhooks"
       ]
     },
     {
       "group": "Operations",
       "pages": [
-        "debugging/playbook"
+        "mintlify/debugging/playbook"
       ]
     }
   ],
